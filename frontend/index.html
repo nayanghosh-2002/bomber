@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SMS Bomber</title>
+</head>
+<body>
+  <h2>SMS Bomber</h2>
+  <textarea id="message" placeholder="Type message here..."></textarea><br>
+  <textarea id="numbers" placeholder="Enter numbers separated by commas..."></textarea><br>
+  <button onclick="sendSMS()">Send SMS</button>
+
+  <pre id="output"></pre>
+
+  <script>
+    async function sendSMS() {
+      const message = document.getElementById('message').value;
+      const numbers = document.getElementById('numbers').value.split(',').map(n => n.trim());
+
+      const res = await fetch('http://localhost:5000/send-sms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message, numbers })
+      });
+
+      const data = await res.json();
+      document.getElementById('output').textContent = JSON.stringify(data, null, 2);
+    }
+  </script>
+</body>
+</html>
