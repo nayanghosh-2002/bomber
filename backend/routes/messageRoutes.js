@@ -1,30 +1,55 @@
 const express = require('express');
-const router = express.Router();
-const Message = require('../models/Message');
 const twilio = require('twilio');
-const accountSid = process.env.TWILIO_ACCOUNT_SID;
-const authToken = process.env.TWILIO_AUTH_TOKEN;
-const client = twilio(accountSid, authToken);
+const Message = require('../models/Message');
+const { authenticate, authorizeRoles } = require('../middleware/authMiddleware');
+
+const router = express.Router();
+const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 const fromNumber = process.env.TWILIO_PHONE_NUMBER;
 
-router.post('/send', async (req, res) => {
+
+router.post('/send', authenticate, async (req, res) => {
   const { to, body } = req.body;
   try {
-    await client.messages.create({ body, from: fromNumber, to });
-    const message = new Message({ to, body });
+    
+    const message = new Message({ user: req.user._id, to, body, status: 'pending' });
     await message.save();
-    res.status(200).send('Message sent and saved');
+
+    // Send SMS with Twilio
+    const sentMsg = await client.messages.create({
+      body,
+      from: fromNumber,
+      to
+    });
+
+    
+    message.status = 'sent';
+    message.dateSent = new Date();
+    await message.save();
+
+    res.json({ message: 'SMS sent successfully', sid: sentMsg.sid });
   } catch (error) {
-    res.status(500).send(error.message);
+    res.status(500).json({ message: error.message });
   }
 });
 
-router.get('/history', async (req, res) => {
+
+router.get('/history', authenticate, async (req, res) => {
   try {
-    const messages = await Message.find().sort({ dateSent: -1 });
+    const messages = await Message.find({ user: req.user._id }).sort({ dateSent: -1 });
     res.json(messages);
   } catch (error) {
-    res.status(500).send(error.message);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+
+router.get('/all', authenticate, authorizeRoles('admin'), async (req, res) => {
+  try {
+    const messages = await Message.find().populate('user', 'username').sort({ dateSent: -1 });
+    res.json(messages);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
 });
 
